@@ -19,6 +19,7 @@ public class SensorRoomResource {
     // 1. GET / - List all rooms
     @GET
     public Response getAllRooms() {
+
         // Return the values from our ConcurrentHashMap
         return Response.ok(db.getRooms().values()).build();
     }
