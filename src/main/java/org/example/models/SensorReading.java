@@ -1,5 +1,6 @@
 package org.example.models;
 
+
 public class SensorReading {
     private String id;        // Unique reading event ID
     private long timestamp;   // Epoch time (ms) when the reading was captured
@@ -16,4 +17,5 @@ public class SensorReading {
 
     public double getValue() { return value; }
     public void setValue(double value) { this.value = value; }
+
 }

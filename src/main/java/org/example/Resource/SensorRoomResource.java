@@ -2,6 +2,7 @@ package org.example.Resource;
 
 import org.example.DataStore;
 import org.example.models.Room;
+import org.example.Exceptions.RoomNotEmptyException;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -76,9 +77,7 @@ public class SensorRoomResource {
         // Check if the sensor list has any items in it
         if (!room.getSensorIds().isEmpty()) {
             // We return a 409 Conflict because the request conflicts with the current state of the server
-            return Response.status(Response.Status.CONFLICT)
-                    .entity("{\"error\":\"Cannot delete room: It still contains active sensors.\"}")
-                    .build();
+            throw new RoomNotEmptyException("Cannot delete room " + roomId + ". It is currently occupied by active hardware.");
         }
 
         // 3. If it's empty, we are safe to delete

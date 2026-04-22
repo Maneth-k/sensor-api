@@ -1,8 +1,7 @@
 package org.example.Resource;
 
-
-
 import org.example.DataStore;
+import org.example.Exceptions.LinkedResourceNotFoundException;
 import org.example.models.Room;
 import org.example.models.Sensor;
 import jakarta.ws.rs.*;
@@ -22,11 +21,8 @@ public class SensorResource {
         Room room = db.getRooms().get(sensor.getRoomId());
 
         if (room == null) {
-            // If the room doesn't exist, we cannot register the sensor
-            // Part 5 will ask for a custom exception, but for now, 400 Bad Request
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("{\"error\":\"Room ID " + sensor.getRoomId() + " does not exist.\"}")
-                    .build();
+            // Throw the custom error!
+            throw new LinkedResourceNotFoundException("Room ID '" + sensor.getRoomId() + "' does not exist. Cannot register sensor.");
         }
 
         // 2. Save the sensor
@@ -51,5 +47,10 @@ public class SensorResource {
         }
 
         return Response.ok(sensorList).build();
+    }
+    // Notice there is no @GET or @POST here!
+    @Path("/{sensorId}/readings")
+    public SensorReadingResource getSensorReadingResource(@PathParam("sensorId") String sensorId) {
+        return new SensorReadingResource(sensorId);
     }
 }
