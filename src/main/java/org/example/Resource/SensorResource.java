@@ -37,4 +37,19 @@ public class SensorResource {
 
         return Response.status(Response.Status.CREATED).entity(sensor).build();
     }
+    @GET
+    public Response getSensors(@QueryParam("type") String type) {
+        // We start with all sensors in a list
+        java.util.List<Sensor> sensorList = new java.util.ArrayList<>(db.getSensors().values());
+
+        // If the user provided a 'type' parameter (e.g., ?type=CO2)
+        if (type != null && !type.trim().isEmpty()) {
+            // Filter the list to only include matching types
+            sensorList = sensorList.stream()
+                    .filter(s -> s.getType().equalsIgnoreCase(type))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+
+        return Response.ok(sensorList).build();
+    }
 }
