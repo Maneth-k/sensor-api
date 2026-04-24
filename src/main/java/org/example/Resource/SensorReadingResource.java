@@ -4,65 +4,83 @@ import org.example.DataStore;
 import org.example.Exceptions.SensorUnavailableException;
 import org.example.models.Sensor;
 import org.example.models.SensorReading;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Part 4.2 — Historical Data Management
+ *
+ * Handles GET and POST for /api/v1/sensors/{sensorId}/readings.
+ * This class is instantiated by the Sub-Resource Locator in SensorResource.
+ */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class SensorReadingResource {
 
-    private String sensorId;
-    private DataStore db = DataStore.getInstance();
+    private final String sensorId;
+    private final DataStore db = DataStore.getInstance();
 
     public SensorReadingResource(String sensorId) {
         this.sensorId = sensorId;
     }
 
-    // 1. GET / - Fetch the historical log
+    // GET /sensors/{sensorId}/readings — Fetch historical readings for this sensor
     @GET
     public Response getReadings() {
-        // Fetch the list of readings for this sensor, or return an empty list if none exist yet
-        List<SensorReading> readings = db.getSensorReadings().getOrDefault(sensorId, new ArrayList<>());
+        List<SensorReading> readings = db.getSensorReadings()
+                .getOrDefault(sensorId, new ArrayList<>());
         return Response.ok(readings).build();
     }
 
-    // 2. POST / - Add a new reading and trigger the side-effect
+    // POST /sensors/{sensorId}/readings — Append a new reading + update parent sensor's currentValue
     @POST
     public Response addReading(SensorReading reading) {
-        // Step A: Validate the parent sensor actually exists
         Sensor parentSensor = db.getSensors().get(sensorId);
+
+        // Parent sensor existence check (defence in depth — locator already validated this)
         if (parentSensor == null) {
             return Response.status(Response.Status.NOT_FOUND)
-                    .entity("{\"error\":\"Parent Sensor " + sensorId + " not found.\"}")
+                    .entity("{\"error\":\"Not Found\", \"message\":\"Sensor '" + sensorId + "' does not exist.\"}")
+                    .type(MediaType.APPLICATION_JSON)
                     .build();
         }
-        if ("MAINTENANCE".equalsIgnoreCase(parentSensor.getStatus()) ||
-                "OFFLINE".equalsIgnoreCase(parentSensor.getStatus())) {
 
+        // Part 5.3 — State Constraint: block readings for MAINTENANCE sensors (403 Forbidden)
+        if ("MAINTENANCE".equalsIgnoreCase(parentSensor.getStatus())) {
             throw new SensorUnavailableException(
-                    "Sensor " + sensorId + " is currently in " + parentSensor.getStatus() +
-                            " mode. It cannot accept new readings."
+                "Sensor '" + sensorId + "' is currently in MAINTENANCE mode and cannot accept new readings. " +
+                "Please wait until the sensor is restored to ACTIVE status."
             );
         }
-        // Step B: Auto-generate ID and timestamp if the client didn't provide them
-        if (reading.getId() == null) {
+
+        // Also block OFFLINE sensors
+        if ("OFFLINE".equalsIgnoreCase(parentSensor.getStatus())) {
+            throw new SensorUnavailableException(
+                "Sensor '" + sensorId + "' is OFFLINE and cannot accept new readings."
+            );
+        }
+
+        // Auto-generate ID and timestamp if not provided by client
+        if (reading.getId() == null || reading.getId().trim().isEmpty()) {
             reading.setId(UUID.randomUUID().toString());
         }
         if (reading.getTimestamp() == 0) {
             reading.setTimestamp(System.currentTimeMillis());
         }
 
-        // Step C: Save the reading to the historical log
+        // Persist the reading in the historical log
         db.getSensorReadings().putIfAbsent(sensorId, new ArrayList<>());
         db.getSensorReadings().get(sensorId).add(reading);
 
-        // Step D: THE SIDE EFFECT - Update the parent sensor
+        // THE SIDE EFFECT (Part 4.2): Update the parent sensor's currentValue to maintain data consistency
         parentSensor.setCurrentValue(reading.getValue());
 
-        return Response.status(Response.Status.CREATED).entity(reading).build();
+        URI location = URI.create("/api/v1/sensors/" + sensorId + "/readings/" + reading.getId());
+        return Response.created(location).entity(reading).build();
     }
 }
